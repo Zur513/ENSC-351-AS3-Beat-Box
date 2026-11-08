@@ -1,0 +1,31 @@
+{
+    //
+    //
+    //
+    //
+    //
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "GDB debug - custom",
+            "type": "cppdgb",
+            "request": "launch",
+            "program": "~/ensc351/public/myApps/assignment_2",
+            "args": [],
+            "stopAtEntry": true,
+            "cwd": "{$workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable prety-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "usr/bin/gbd-multiarch",
+            "miDebuggerServerAddress": "192.168.7.2:2001"
+        }
+    ]
+}
