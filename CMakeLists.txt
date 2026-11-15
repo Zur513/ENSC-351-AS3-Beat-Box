@@ -1,6 +1,6 @@
 # CMake Build Configuration for root of project
 cmake_minimum_required(VERSION 3.18)
-project(assignment_2 VERSION 1.0 DESCRIPTION "ENSC351 Assignment 2" LANGUAGES C)
+project(assignment_3 VERSION 1.0 DESCRIPTION "ENSC351 Assignment 3" LANGUAGES C)
 
 # Compiler options (inherited by sub-folders)
 set(CMAKE_C_STANDARD 11)
