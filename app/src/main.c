@@ -1,5 +1,7 @@
 // Light dip detector: samples a light sensor, flashes an LED, and serves stats over UDP
 
+#include <unistd.h> //remove later and use any sleeps in the other modules
+#include "app/audioMixer.h"
 #include "app/sampler.h"
 #include "app/periodTimer.h"
 #include "app/reporter.h"
@@ -9,8 +11,11 @@
 
 int main(void)
 {
+	wavedata_t sound;
 	// Start the modules (each one except the period timer runs its own thread)
-	
+	AudioMixer_init();
+	AudioMixer_readWaveFileIntoMemory("wave-files/100060__menegass__gui-drum-splash-hard.wav", &sound);
+
 	//Period_init();
 	//Sampler_init();
 	//Reporter_init();
@@ -22,6 +27,11 @@ int main(void)
 
 	// Stop in roughly the reverse order, so no module is still using one
 	// that has already stopped
+	AudioMixer_queueSound(&sound);
+	sleep(2);
+
+	AudioMixer_cleanup();
+	AudioMixer_freeWaveFileData(&sound);
 	//LedControl_cleanup();
 	//UdpServer_cleanup();
 	//Reporter_cleanup();

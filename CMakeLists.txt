@@ -4,8 +4,8 @@ project(assignment_3 VERSION 1.0 DESCRIPTION "ENSC351 Assignment 3" LANGUAGES C)
 
 # Compiler options (inherited by sub-folders)
 set(CMAKE_C_STANDARD 11)
-add_compile_options(-Wall -Werror -Wpedantic -Wextra)
-add_compile_options(-fdiagnostics-color)
+# add_compile_options(-Wall -Werror -Wpedantic -Wextra)
+# add_compile_options(-fdiagnostics-color)
 
 # AddressSanitizer for development
 # Off by default

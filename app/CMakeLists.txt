@@ -9,7 +9,7 @@ add_executable(assignment_3 ${MY_SOURCES})
 find_package(ALSA REQUIRED)
 
 # Make use of the HAL library
-target_link_libraries(assignment_3 LINK_PRIVATE hal)
+target_link_libraries(assignment_3 LINK_PRIVATE hal asound) #need to link BOTH hal and asound alongsiide eachother
 
 # Copy executable to final location assignment_3
 add_custom_command(TARGET assignment_3 POST_BUILD 
