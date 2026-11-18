@@ -2,6 +2,7 @@
 
 #include <unistd.h> //remove later and use any sleeps in the other modules
 #include "app/audioMixer.h"
+#include "app/timing.h"
 #include "app/sampler.h"
 #include "app/periodTimer.h"
 #include "app/reporter.h"
@@ -27,6 +28,8 @@ int main(void)
 
 	// Stop in roughly the reverse order, so no module is still using one
 	// that has already stopped
+	AudioMixer_queueSound(&sound);
+	Timing_sleepForMs(0.5 * 1000); // sleep for 0.9 seconds to allow the sound to play before cleanup
 	AudioMixer_queueSound(&sound);
 	sleep(2);
 

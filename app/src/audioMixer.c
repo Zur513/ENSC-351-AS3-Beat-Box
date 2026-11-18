@@ -9,7 +9,6 @@
 #include <limits.h>
 #include <alloca.h> // needed for mixer
 
-
 static snd_pcm_t *handle;
 
 #define DEFAULT_VOLUME 60
@@ -54,7 +53,7 @@ void AudioMixer_init(void)
 	for (int i = 0; i < MAX_SOUND_BITES; i++) {
 		soundBites[i].pSound = NULL;
 	}
-	
+
 	// Open the PCM output
 	int err = snd_pcm_open(&handle, "default", SND_PCM_STREAM_PLAYBACK, 0);
 	if (err < 0) {
@@ -143,7 +142,7 @@ void AudioMixer_queueSound(wavedata_t *pSound)
 
 	// Insert the sound by searching for an empty sound bite spot
 	/*
-	 * REVISIT: Implement this:
+	 * DONE:
 	 * 1. Since this may be called by other threads, and there is a thread
 	 *    processing the soundBites[] array, we must ensure access is threadsafe.
 	 * 2. Search through the soundBites[] array looking for a free slot.
@@ -192,7 +191,6 @@ void AudioMixer_cleanup(void)
 	printf("Done stopping audio...\n");
 	fflush(stdout);
 }
-
 
 int AudioMixer_getVolume()
 {
@@ -246,8 +244,12 @@ static void fillPlaybackBuffer(short *buff, int size)
 	 * REVISIT: Implement this
 	 * 1. Wipe the buff to all 0's to clear any previous PCM data.
 	 *    Hint: use memset(); read the docs about its use of size.
+	 * DONE
+	 * 
 	 * 2. Since this is called from a background thread, and soundBites[] array
 	 *    may be used by any other thread, must synchronize this.
+	 * DONE
+	 * 
 	 * 3. Loop through each slot in soundBites[], which are sounds that are either
 	 *    waiting to be played, or partially already played:
 	 *    - If the sound bite slot is unused, do nothing for this slot.
@@ -257,6 +259,7 @@ static void fillPlaybackBuffer(short *buff, int size)
 	 *        the location inside the data where play-back currently is.
 	 *      * If you have now played back the entire sample, free the slot in the
 	 *        soundBites[] array.
+	 * DONE
 	 *
 	 * Notes on "adding" PCM samples:
 	 * - PCM is stored as signed shorts (between SHRT_MIN and SHRT_MAX).
@@ -283,12 +286,46 @@ static void fillPlaybackBuffer(short *buff, int size)
 	 *
 	 */
 
-	int bytesPerSample = sizeof(*buff);
-	wramemset(buff, 0, size * bytesPerSample); //size is the number of *values* to store into buff, not the number of bytes
+	int bytesPerSample = sizeof(*buff); //size is the number of *values* to store into buff, not the number of bytes
+	memset(buff, 0, size * bytesPerSample); // clear the buffer to all 0s (silence)
 
+	pthread_mutex_lock (&audioMutex);
 
+	for (int i = 0; i < MAX_SOUND_BITES; i++) {
+		wavedata_t *pSound = soundBites[i].pSound;
+		if (soundBites[i].pSound == NULL) {
+			continue; //skip unused slots
+		}
+		int loc = soundBites[i].location; //cache the location to a local variable for efficiency
+		int numSamples = soundBites[i].pSound->numSamples;
+		short *pData = pSound->pData;
+
+		for (int j = 0; j < size && loc < numSamples; j++) {
+				int sum = buff[j] + pData[loc];
+				if (sum > SHRT_MAX) {
+					sum = SHRT_MAX;
+				} else if (sum < SHRT_MIN) {
+					sum = SHRT_MIN;
+				}
+				buff[j] = (short)sum;
+				loc++; //increment the location for this sound bite
+		}
+
+		soundBites[i].location = loc; //write back the updated location to the struct
+		if (loc >= numSamples) {
+			// Finished playing this sound bite, free the slot
+			soundBites[i].pSound = NULL;
+		}
+	}
+	pthread_mutex_unlock (&audioMutex); 
 }
 
+void Beats(void)
+{
+	// This function is a placeholder for future implementation.
+	// It currently does nothing and returns 0.
+	return 0;
+}
 
 void* playbackThread(void* _arg)
 {
