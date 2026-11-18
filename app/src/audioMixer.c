@@ -12,7 +12,7 @@
 
 static snd_pcm_t *handle;
 
-#define DEFAULT_VOLUME 80
+#define DEFAULT_VOLUME 60
 
 #define SAMPLE_RATE 44100
 #define NUM_CHANNELS 1
@@ -51,12 +51,10 @@ void AudioMixer_init(void)
 	AudioMixer_setVolume(DEFAULT_VOLUME);
 
 	// Initialize the currently active sound-bites being played
-	// REVISIT:- Implement this. Hint: set the pSound pointer to NULL for each
-	//     sound bite.
-
-
-
-
+	for (int i = 0; i < MAX_SOUND_BITES; i++) {
+		soundBites[i].pSound = NULL;
+	}
+	
 	// Open the PCM output
 	int err = snd_pcm_open(&handle, "default", SND_PCM_STREAM_PLAYBACK, 0);
 	if (err < 0) {
@@ -156,10 +154,20 @@ void AudioMixer_queueSound(wavedata_t *pSound)
 	 *    because the application most likely doesn't want to crash just for
 	 *    not being able to play another wave file.
 	 */
-
-
-
-
+	bool foundFreeSlot = false;
+	pthread_mutex_lock(&audioMutex);
+	for (int i = 0; i < MAX_SOUND_BITES; i++) {
+		if (soundBites[i].pSound == NULL) {
+			soundBites[i].pSound = pSound;
+			soundBites[i].location = 0; //start at 0 (beginning of the sound that was just queued)
+			foundFreeSlot = true;
+			break; //exit once a slot is found
+		}
+	}
+	pthread_mutex_unlock(&audioMutex);
+	if (!foundFreeSlot) {
+		fprintf(stderr, "ERROR: No free slots found in soundBites array\n");
+	}
 
 }
 
@@ -275,6 +283,8 @@ static void fillPlaybackBuffer(short *buff, int size)
 	 *
 	 */
 
+	int bytesPerSample = sizeof(*buff);
+	wramemset(buff, 0, size * bytesPerSample); //size is the number of *values* to store into buff, not the number of bytes
 
 
 }
