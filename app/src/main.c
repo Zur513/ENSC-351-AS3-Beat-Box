@@ -13,10 +13,12 @@ int main(void)
 {
 	wavedata_t sound;
 
+	Period_init();
 	AudioMixer_init();
 	DrumBeat_init();
 	UdpServer_init();
-
+	Reporter_init();
+	
 	// Load sound
 	AudioMixer_readWaveFileIntoMemory("beatbox-wav-files/100060__menegass__gui-drum-splash-hard.wav", &sound);
 	
@@ -30,9 +32,11 @@ int main(void)
 	Shutdown_waitForRequest();
 
 	// Stop in the reverse order so no module is still using one that has already stopped
+	Reporter_cleanup();
 	UdpServer_cleanup();
 	DrumBeat_cleanup();
 	AudioMixer_cleanup();
+	Period_cleanup();
 
 	// Unload sound
 	AudioMixer_freeWaveFileData(&sound);

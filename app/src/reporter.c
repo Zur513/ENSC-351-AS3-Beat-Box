@@ -1,4 +1,4 @@
-// Reporter module
+// Reporter module: collects and reports statistical and setting information about beatbox
 
 #include <assert.h>
 #include <pthread.h>
@@ -7,23 +7,29 @@
 #include "app/reporter.h"
 #include "app/periodTimer.h"
 #include "app/timing.h"
-#include "app/tempoControl.h"
+#include "app/drumBeat.h"
+#include "app/audioMixer.h"
 
 static pthread_t reporterThread;
 static bool isRunning = false;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 static bool isThreadRunning(void);
-static void printStatsLine(void);
+static void printStatsLine(int mode, int tempo, int volume,
+		const Period_statistics_t *pAudioStats,
+		const Period_statistics_t *pAccelStats);
 
 static void *reporterThreadFn(void *pArg)
 {
 	(void)pArg;
 	while (isThreadRunning()) {
 		Timing_sleepForMs(MS_PER_SECOND);
-		Period_statistics_t stats;
-		Period_getStatisticsAndClear(PERIOD_EVENT_AUDIO, &stats);
-		printStatsLine();
+		Period_statistics_t audioStats;
+		Period_statistics_t accelStats;
+		Period_getStatisticsAndClear(PERIOD_EVENT_AUDIO, &audioStats);
+		Period_getStatisticsAndClear(PERIOD_EVENT_ACCEL, &accelStats);
+		printStatsLine(DrumBeat_getMode(), DrumBeat_getTempo(),
+				AudioMixer_getVolume(), &audioStats, &accelStats);
 	}
 	return NULL;
 }
@@ -71,8 +77,16 @@ static bool isThreadRunning(void)
 	return shouldRun;
 }
 
-static void printStatsLine(void)
+static void printStatsLine(int mode, int tempo, int volume,
+		const Period_statistics_t *pAudioStats,
+		const Period_statistics_t *pAccelStats)
 {
-	printf("M%d %dbpm vol:%d Audio[%2.3f, %2.3f] avg %2.3f/%d Accel[%2.3f, %2.3f] avg %2.3f/%d\n",
-		   0, 120, 1, 1.1, 1.1, 1.1, 1, 1.1, 1.1, 1.1, 1);
+	printf("M%d %dbpm vol:%d   "
+			"Audio[%.3f, %.3f] avg %.3f/%d     "
+			"Accel[%.3f, %.3f] avg %.3f/%d\n",
+			mode, tempo, volume,
+			pAudioStats->minPeriodInMs, pAudioStats->maxPeriodInMs,
+			pAudioStats->avgPeriodInMs, pAudioStats->numSamples,
+			pAccelStats->minPeriodInMs, pAccelStats->maxPeriodInMs,
+			pAccelStats->avgPeriodInMs, pAccelStats->numSamples);
 }

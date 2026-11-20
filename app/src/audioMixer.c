@@ -2,6 +2,7 @@
 // mixing any sounds that overlap into one playback buffer
 
 #include "app/audioMixer.h"
+#include "app/periodTimer.h"
 #include <alsa/asoundlib.h>
 #include <stdbool.h>
 #include <pthread.h>
@@ -332,6 +333,9 @@ void* playbackThread(void* _arg)
 		// Generate next block of audio
 		fillPlaybackBuffer(playbackBuffer, playbackBufferSize);
 
+		// Mark an audio event
+		Period_markEvent(PERIOD_EVENT_AUDIO);
+		
 		// Output the audio
 		snd_pcm_sframes_t frames = snd_pcm_writei(handle,
 				playbackBuffer, playbackBufferSize);
