@@ -1,4 +1,4 @@
-// Light dip detector: samples a light sensor, flashes an LED, and serves stats over UDP
+// Beat box: plays drum beats controlled via joystick, accelerometer, and web interface
 
 #include <unistd.h> //remove later and use any sleeps in the other modules
 #include "app/audioMixer.h"
@@ -15,7 +15,7 @@ int main(void)
 	wavedata_t sound;
 	// Start the modules (each one except the period timer runs its own thread)
 	AudioMixer_init();
-	AudioMixer_readWaveFileIntoMemory("wave-files/100060__menegass__gui-drum-splash-hard.wav", &sound);
+	AudioMixer_readWaveFileIntoMemory("beatbox-wav-files/100060__menegass__gui-drum-splash-hard.wav", &sound);
 
 	//Period_init();
 	//Sampler_init();

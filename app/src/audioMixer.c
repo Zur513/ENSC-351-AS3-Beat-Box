@@ -1,7 +1,6 @@
-// Incomplete implementation of an audio mixer. Search for "REVISIT" to find things
-// which are left as incomplete.
-// Note: Generates low latency audio on BeagleBone Black; higher latency found on host.
-//#include "audioMixer_template.h"
+// Audio mixer: plays wave files in real time through ALSA
+// mixing any sounds that overlap into one playback buffer
+
 #include "app/audioMixer.h"
 #include <alsa/asoundlib.h>
 #include <stdbool.h>

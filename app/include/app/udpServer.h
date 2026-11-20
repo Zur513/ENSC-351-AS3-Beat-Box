@@ -1,14 +1,11 @@
-// udpServer.h
 // UDP server module: listens on port 12345 in a background thread and replies
-// to text commands:
-// help: Return a brief summary/list of supported commands
-// ?: Same as help
-// count: Return the total number of light samples taken so far
-// length: Return how many samples were captured during the previous second
-// dips: Return how many dips were detected during the previous second's samples
-// history: Return all the data samples from the previous second
-// stop: Calls Shutdown_request()
-// blank line: Repeats the last command
+// to text commands from the Node.js server. Each reply is one packet.
+// mode N:   set the beat (0 none, 1 rock, 2 custom) and reply with the mode
+// volume N: set the volume (0 - 100) and reply with the volume
+// tempo N:  set the tempo (40 - 300 BPM) and reply with the tempo
+// play N:   play one drum sound (0 base, 1 hi-hat, 2 snare)
+// stop:     calls Shutdown_request()
+// Sending a command without a number only queries the current value.
 
 #ifndef UDP_SERVER_H
 #define UDP_SERVER_H
