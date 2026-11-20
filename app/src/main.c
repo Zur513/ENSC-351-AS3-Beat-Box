@@ -3,12 +3,11 @@
 #include <unistd.h> //remove later and use any sleeps in the other modules
 #include "app/audioMixer.h"
 #include "app/timing.h"
-#include "app/sampler.h"
 #include "app/periodTimer.h"
 #include "app/reporter.h"
 #include "app/udpServer.h"
 #include "app/shutdown.h"
-#include "app/ledControl.h"
+#include "app/tempoControl.h"
 
 int main(void)
 {
@@ -18,11 +17,9 @@ int main(void)
 	AudioMixer_readWaveFileIntoMemory("beatbox-wav-files/100060__menegass__gui-drum-splash-hard.wav", &sound);
 
 	//Period_init();
-	//Sampler_init();
 	//Reporter_init();
 	//UdpServer_init();
-	//LedControl_init();
-
+	
 	// Sleep here until the UDP "stop" command asks the program to end
 	//Shutdown_waitForRequest();
 
@@ -35,10 +32,8 @@ int main(void)
 
 	AudioMixer_cleanup();
 	AudioMixer_freeWaveFileData(&sound);
-	//LedControl_cleanup();
 	//UdpServer_cleanup();
 	//Reporter_cleanup();
-	//Sampler_cleanup();
 	//Period_cleanup();
 	return 0;
 }

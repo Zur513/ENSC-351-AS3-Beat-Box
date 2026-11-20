@@ -8,8 +8,6 @@
 
 // Written by Brian Fraser
 
-
-
 // Data collected
 typedef struct {
     // Store the timestamp samples each time we mark an event.
@@ -129,10 +127,6 @@ static void updateStats(
     pStats->avgPeriodInMs = avgNs / MS_PER_NS;
     pStats->numSamples = pData->timestampCount;
 }
-
-
-
-
 
 // Timing function
 static long long getTimeInNanoS(void) 

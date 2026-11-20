@@ -16,8 +16,7 @@ The project cross-compiles with CMake, using `aarch64-linux-gnu-gcc` and the arm
 cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=aarch64-toolchain.cmake && cmake --build build
 ```
 
-The build copies the executable to `~/ensc351/public/myApps/beatbox`, the drum sounds to
-`~/ensc351/public/myApps/beatbox-wav-files/`, the Node.js server to `~/ensc351/public/myApps/beatbox-server-copy/`
+The build copies the executable to `~/ensc351/public/myApps/beatbox`, the drum sounds to `~/ensc351/public/myApps/beatbox-wav-files/`, and the Node.js server to `~/ensc351/public/myApps/beatbox-server-copy/`
 Adding `-DUSE_ASAN=ON` to the first command builds with AddressSanitizer.
 It's off by default, since valgrind can't run an ASan binary.
 

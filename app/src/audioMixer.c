@@ -323,7 +323,7 @@ void Beats(void)
 {
 	// This function is a placeholder for future implementation.
 	// It currently does nothing and returns 0.
-	return 0;
+	return;
 }
 
 void* playbackThread(void* _arg)

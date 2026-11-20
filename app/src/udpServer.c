@@ -3,9 +3,7 @@
 // to text commands
 
 #include "app/udpServer.h"
-#include "app/sampler.h"
 #include "app/shutdown.h"
-#include "app/reporter.h"
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
@@ -21,10 +19,6 @@
 
 #define MAX_REPLY_SIZE 1500
 
-#define VALS_PER_LINE 10
-// 10 values of up to "3.300, " which is 7 chars, plus the newline, with extra room given
-#define MAX_LINE_SIZE 128
-
 static pthread_t udpServerThread;
 static bool isRunning = false;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
@@ -35,25 +29,12 @@ static void *udpServerThreadFn(void *pArg);
 
 static bool handleCommand(const char *pCommand, const struct sockaddr_in *pSender);
 static void handleHelp(const struct sockaddr_in *pSender);
-static void handleCount(const struct sockaddr_in *pSender);
-static void handleLength(const struct sockaddr_in *pSender);
-static void handleDips(const struct sockaddr_in *pSender);
-static void handleHistory(const struct sockaddr_in *pSender);
-static int formatHistoryLine(const double *pHistory,
-							 int size,
-							 int start,
-							 char *pLine,
-							 int lineSize);
 static void handleStop(const struct sockaddr_in *pSender);
 
 static void sendReply(const char *pMessage, const struct sockaddr_in *pSender);
 
 static const char HELP_MESSAGE[] =
 	"Accepted command examples:\n"
-	"count    -- get the total number of samples taken.\n"
-	"length   -- get the number of samples taken in the previously completed second.\n"
-	"dips     -- get the number of dips in the previously completed second.\n"
-	"history  -- get all the samples in the previously completed second.\n"
 	"stop     -- cause the server program to end.\n"
 	"<enter>  -- repeat last command.\n";
 
@@ -155,14 +136,6 @@ static bool handleCommand(const char *pCommand, const struct sockaddr_in *pSende
 	bool isStop = false;
 	if (strcmp(pCommand, "help") == 0 || strcmp(pCommand, "?") == 0) {
 		handleHelp(pSender);
-	} else if (strcmp(pCommand, "count") == 0) {
-		handleCount(pSender);
-	} else if (strcmp(pCommand, "length") == 0) {
-		handleLength(pSender);
-	} else if (strcmp(pCommand, "dips") == 0) {
-		handleDips(pSender);
-	} else if (strcmp(pCommand, "history") == 0) {
-		handleHistory(pSender);
 	} else if (strcmp(pCommand, "stop") == 0) {
 		handleStop(pSender);
 		isStop = true;
@@ -175,71 +148,6 @@ static bool handleCommand(const char *pCommand, const struct sockaddr_in *pSende
 static void handleHelp(const struct sockaddr_in *pSender)
 {
 	sendReply(HELP_MESSAGE, pSender);
-}
-
-static void handleCount(const struct sockaddr_in *pSender)
-{
-	char reply[MAX_REPLY_SIZE];
-	snprintf(reply, sizeof(reply), "# samples taken total: %lld\n", Sampler_getNumSamplesTaken());
-	sendReply(reply, pSender);
-}
-
-static void handleLength(const struct sockaddr_in *pSender)
-{
-	char reply[MAX_REPLY_SIZE];
-	snprintf(reply, sizeof(reply), "# samples taken in the last second: %d\n", Sampler_getHistorySize());
-	sendReply(reply, pSender);
-}
-
-static void handleDips(const struct sockaddr_in *pSender)
-{
-	char reply[MAX_REPLY_SIZE];
-	snprintf(reply, sizeof(reply), "# Dips: %d\n", Reporter_getDipCount());
-	sendReply(reply, pSender);
-}
-
-static void handleHistory(const struct sockaddr_in *pSender)
-{
-	int size = 0;
-	double *pHistory = Sampler_getHistory(&size);
-	char packet[MAX_PACKET_SIZE + 1] = "";
-	int packetLen = 0;
-	for (int beginning = 0; beginning < size; beginning += VALS_PER_LINE) {
-		char line[MAX_LINE_SIZE];
-		int lineLen = formatHistoryLine(pHistory, size, beginning, line, sizeof(line));
-		// Send the packet before this line would push it past 1500 bytes,
-		// so no number is split between two packets
-		if (packetLen + lineLen > MAX_PACKET_SIZE) {
-			sendReply(packet, pSender);
-			packetLen = 0;
-		}
-		// + 1 on lineLen so that we also copy string terminator
-		memcpy((packet + packetLen), line, (lineLen + 1));
-		packetLen += lineLen;
-	}
-	// Send what's left (or a note during the first second, before there's
-	// any history)
-	sendReply(((packetLen > 0) ? packet : "# History is empty.\n"), pSender);
-	free(pHistory);
-}
-
-static int formatHistoryLine(const double *pHistory,
-							 int size,
-							 int start,
-							 char *pLine,
-							 int lineSize)
-{
-	int len = 0;
-	int end = (start + VALS_PER_LINE < size) ? start + VALS_PER_LINE : size;
-	for (int i = start; i < end; i++) {
-		const char *pBreaker = (i < end - 1) ? " " : "\n";
-		len += snprintf((pLine + len),
-						(lineSize - len),
-						"%.3f,%s",
-						pHistory[i],
-						pBreaker);
-	}
-	return len;
 }
 
 static void handleStop(const struct sockaddr_in *pSender)
