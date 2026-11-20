@@ -4,6 +4,8 @@
 
 #include "app/udpServer.h"
 #include "app/shutdown.h"
+#include "app/audioMixer.h"
+#include "app/drumBeat.h"
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
@@ -29,14 +31,24 @@ static void *udpServerThreadFn(void *pArg);
 
 static bool handleCommand(const char *pCommand, const struct sockaddr_in *pSender);
 static void handleHelp(const struct sockaddr_in *pSender);
+static void handleTempo(bool hasValue, int value, const struct sockaddr_in *pSender);
+static void handleMode(bool hasValue, int value, const struct sockaddr_in *pSender);
+static void handleVolume(bool hasValue, int value, const struct sockaddr_in *pSender);
+static void handlePlay(bool hasValue, int value, const struct sockaddr_in *pSender);
 static void handleStop(const struct sockaddr_in *pSender);
 
 static void sendReply(const char *pMessage, const struct sockaddr_in *pSender);
 
 static const char HELP_MESSAGE[] =
 	"Accepted command examples:\n"
-	"stop     -- cause the server program to end.\n"
-	"<enter>  -- repeat last command.\n";
+	"help -- show this message.\n"
+	"? -- show this message.\n"
+	"tempo n -- set tempo to n BPM.\n"
+	"mode n -- set mode to n.\n"
+	"volume n -- set volume to n.\n"
+	"play n -- play sound n.\n"
+	"stop -- cause the server program to end.\n"
+	"<enter> -- repeat last command.\n";
 
 static void *udpServerThreadFn(void *pArg)
 {
@@ -134,11 +146,25 @@ static bool handleCommand(const char *pCommand, const struct sockaddr_in *pSende
 {
 	assert(pCommand != NULL && pSender != NULL);
 	bool isStop = false;
-	if (strcmp(pCommand, "help") == 0 || strcmp(pCommand, "?") == 0) {
+
+	// Rip apart the command
+	char word[16] = "";
+	int value = 0;
+	int numParsed = sscanf(pCommand, "%15s %d", word, &value);
+	
+	if (strcmp(word, "help") == 0 || strcmp(word, "?") == 0) {
 		handleHelp(pSender);
-	} else if (strcmp(pCommand, "stop") == 0) {
+	} else if (strcmp(word, "stop") == 0) {
 		handleStop(pSender);
 		isStop = true;
+	} else if (strcmp(word, "tempo") == 0) {
+		handleTempo(numParsed == 2, value, pSender);
+	} else if (strcmp(word, "mode") == 0) {
+		handleMode(numParsed == 2, value, pSender);
+	} else if (strcmp(word, "volume") == 0) {
+		handleVolume(numParsed == 2, value, pSender);
+	} else if (strcmp(word, "play") == 0) {
+		handlePlay(numParsed == 2, value, pSender);
 	} else {
 		sendReply("Unknown command. Type 'help' for the list of commands.\n", pSender);
 	}
@@ -148,6 +174,50 @@ static bool handleCommand(const char *pCommand, const struct sockaddr_in *pSende
 static void handleHelp(const struct sockaddr_in *pSender)
 {
 	sendReply(HELP_MESSAGE, pSender);
+}
+
+static void handleTempo(bool hasValue, int value, const struct sockaddr_in *pSender)
+{
+	if (hasValue) {
+		DrumBeat_setTempo(value);
+	}
+	char reply[MAX_REPLY_SIZE];
+	snprintf(reply, sizeof(reply), "%d\n", DrumBeat_getTempo());
+	sendReply(reply, pSender);
+}
+
+static void handleMode(bool hasValue, int value, const struct sockaddr_in *pSender)
+{
+	if (hasValue && (value >= 0) && (value < DRUMBEAT_NUM_MODES)) {
+		DrumBeat_setMode(value);
+	}
+	char reply[MAX_REPLY_SIZE];
+	snprintf(reply, sizeof(reply), "%d\n", DrumBeat_getMode());
+	sendReply(reply, pSender);
+}
+
+static void handleVolume(bool hasValue, int value, const struct sockaddr_in *pSender)
+{
+	if (hasValue && (value <= AUDIOMIXER_MAX_VOLUME)) {
+		AudioMixer_setVolume(value);
+	}
+	char reply[MAX_REPLY_SIZE];
+	snprintf(reply, sizeof(reply), "%d\n", AudioMixer_getVolume());
+	sendReply(reply, pSender);
+}
+
+static void handlePlay(bool hasValue, int value, const struct sockaddr_in *pSender)
+{
+	char reply[MAX_REPLY_SIZE];
+	if (hasValue && (value >= 0) && (value < DRUMBEAT_NUM_SOUNDS)) {
+		DrumBeat_playSound(value);
+		snprintf(reply, sizeof(reply), "Playing %d\n", value);
+	} else if (hasValue) {
+		snprintf(reply, sizeof(reply), "%d is unknown!\n", value);
+	} else {
+		snprintf(reply, sizeof(reply), "Usage: play N (0 - 2)\n");
+	}
+	sendReply(reply, pSender);
 }
 
 static void handleStop(const struct sockaddr_in *pSender)
