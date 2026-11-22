@@ -15,6 +15,9 @@ typedef struct {
 void AudioMixer_init(void);
 void AudioMixer_cleanup(void);
 
+// sets all sounds in the soundites array to null
+void AudioMixer_stopAllSounds(void);
+
 // Read the contents of a wave file into the pSound structure. Note that
 // the pData pointer in this structure will be dynamically allocated in
 // readWaveFileIntoMemory(), and is freed by calling freeWaveFileData().

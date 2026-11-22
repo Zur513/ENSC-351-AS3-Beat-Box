@@ -139,20 +139,7 @@ void AudioMixer_queueSound(wavedata_t *pSound)
 	// Ensure we are only being asked to play "good" sounds:
 	assert(pSound->numSamples > 0);
 	assert(pSound->pData);
-
-	// Insert the sound by searching for an empty sound bite spot
-	/*
-	 * DONE:
-	 * 1. Since this may be called by other threads, and there is a thread
-	 *    processing the soundBites[] array, we must ensure access is threadsafe.
-	 * 2. Search through the soundBites[] array looking for a free slot.
-	 * 3. If a free slot is found, place the new sound file into that slot.
-	 *    Note: You are only copying a pointer, not the entire data of the wave file!
-	 * 4. After searching through all slots, if no free slot is found then print
-	 *    an error message to the console (and likely just return vs asserting/exiting
-	 *    because the application most likely doesn't want to crash just for
-	 *    not being able to play another wave file.
-	 */
+	
 	bool foundFreeSlot = false;
 	pthread_mutex_lock(&audioMutex);
 	for (int i = 0; i < MAX_SOUND_BITES; i++) {
@@ -167,7 +154,6 @@ void AudioMixer_queueSound(wavedata_t *pSound)
 	if (!foundFreeSlot) {
 		fprintf(stderr, "ERROR: No free slots found in soundBites array\n");
 	}
-
 }
 
 void AudioMixer_cleanup(void)
@@ -234,57 +220,11 @@ void AudioMixer_setVolume(int newVolume)
     snd_mixer_close(mixerHandle);
 }
 
-
 // Fill the buff array with new PCM values to output.
 //    buff: buffer to fill with new PCM data from sound bites.
 //    size: the number of *values* to store into buff
 static void fillPlaybackBuffer(short *buff, int size)
 {
-	/*
-	 * REVISIT: Implement this
-	 * 1. Wipe the buff to all 0's to clear any previous PCM data.
-	 *    Hint: use memset(); read the docs about its use of size.
-	 * DONE
-	 * 
-	 * 2. Since this is called from a background thread, and soundBites[] array
-	 *    may be used by any other thread, must synchronize this.
-	 * DONE
-	 * 
-	 * 3. Loop through each slot in soundBites[], which are sounds that are either
-	 *    waiting to be played, or partially already played:
-	 *    - If the sound bite slot is unused, do nothing for this slot.
-	 *    - Otherwise "add" this sound bite's data to the play-back buffer
-	 *      (other sound bites needing to be played back will also add to the same data).
-	 *      * Record that this portion of the sound bite has been played back by incrementing
-	 *        the location inside the data where play-back currently is.
-	 *      * If you have now played back the entire sample, free the slot in the
-	 *        soundBites[] array.
-	 * DONE
-	 *
-	 * Notes on "adding" PCM samples:
-	 * - PCM is stored as signed shorts (between SHRT_MIN and SHRT_MAX).
-	 * - When adding values, ensure there is not an overflow. Any values which would
-	 *   greater than SHRT_MAX should be clipped to SHRT_MAX; likewise for underflow.
-	 * - Don't overflow any arrays!
-	 * - Efficiency matters here! The compiler may do quite a bit for you, but it doesn't
-	 *   hurt to keep it in mind. Here are some tips for efficiency and readability:
-	 *   * If, for each pass of the loop which "adds" you need to change a value inside
-	 *     a struct inside an array, it may be faster to first load the value into a local
-	 *      variable, increment this variable as needed throughout the loop, and then write it
-	 *     back into the struct inside the array after. For example:
-	 *           int offset = myArray[someIdx].value;
-	 *           for (int i =...; i < ...; i++) {
-	 *               offset ++;
-	 *           }
-	 *           myArray[someIdx].value = offset;
-	 *   * If you need a value in a number of places, try loading it into a local variable
-	 *          int someNum = myArray[someIdx].value;
-	 *          if (someNum < X || someNum > Y || someNum != Z) {
-	 *              someNum = 42;
-	 *          }
-	 *          ... use someNum vs myArray[someIdx].value;
-	 *
-	 */
 
 	int bytesPerSample = sizeof(*buff); //size is the number of *values* to store into buff, not the number of bytes
 	memset(buff, 0, size * bytesPerSample); // clear the buffer to all 0s (silence)
@@ -350,4 +290,13 @@ void* playbackThread(void* _arg)
 	}
 
 	return NULL;
+}
+
+void AudioMixer_stopAllSounds(void)
+{
+	pthread_mutex_lock(&audioMutex);
+	for (int i = 0; i < MAX_SOUND_BITES; i++) {// set every sound to null 
+		soundBites[i].pSound = NULL; 
+	}
+	pthread_mutex_unlock(&audioMutex);
 }
