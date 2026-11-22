@@ -13,7 +13,4 @@ void TempoControl_init(void);
 // Stop the thread and release the encoder
 void TempoControl_cleanup(void);
 
-// Return the BPM. Safe to call from any thread.
-int TempoControl_getTempoBPM(void);
-
 #endif
