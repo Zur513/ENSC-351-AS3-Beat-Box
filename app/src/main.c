@@ -16,11 +16,13 @@ int main(void)
 	DrumBeat_init();
 	UdpServer_init();
 	Reporter_init();
+	TempoControl_init();
 
 	// Sleep here until the UDP "stop" command asks the program to end
 	Shutdown_waitForRequest();
 
 	// Stop in the reverse order so no module is still using one that has already stopped
+	TempoControl_cleanup();
 	Reporter_cleanup();
 	UdpServer_cleanup();
 	DrumBeat_cleanup();

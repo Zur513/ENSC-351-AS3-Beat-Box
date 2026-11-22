@@ -131,5 +131,4 @@ void DrumBeat_playSound(DrumBeat_sound sound)
 {
 	assert((sound >= 0) && (sound < DRUMBEAT_NUM_SOUNDS));
 	AudioMixer_queueSound(&sounds[sound]);
-	printf("Playing sound %d\n", sound);
 }
