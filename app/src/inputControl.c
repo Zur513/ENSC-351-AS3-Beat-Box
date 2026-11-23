@@ -41,15 +41,15 @@ typedef struct {
 	DrumBeat_sound sound;
 	int pollsUntilReady; 	//debounce countdown after a hit
 	bool isArmed; 			//false until the axis calms down after a hit
-	const char *name;       // for the message printed on a hit
+	const char *pName;      // for the message printed on a hit
 } AccelAxis;
 
 // Only touched by the input thread. Rest voltages were measured flat on the desk;
 // Z's includes the 1 g from gravity.
 static AccelAxis axes[NUM_AXES] = {
-	{ .channel = 5, .restV = 2.02, .thresholdG = 0.8, .sound = DRUMBEAT_SOUND_BASE,  .isArmed = true, .name = "Z" }, // vertical drum = bass
-	{ .channel = 6, .restV = 1.64, .thresholdG = 1.2, .sound = DRUMBEAT_SOUND_SNARE, .isArmed = true, .name = "X" },
-	{ .channel = 7, .restV = 1.65, .thresholdG = 1.2, .sound = DRUMBEAT_SOUND_HIHAT, .isArmed = true, .name = "Y" },
+	{ .channel = 5, .restV = 2.02, .thresholdG = 0.8, .sound = DRUMBEAT_SOUND_BASE,  .isArmed = true, .pName = "Z" }, // vertical drum = bass
+	{ .channel = 6, .restV = 1.64, .thresholdG = 1.2, .sound = DRUMBEAT_SOUND_SNARE, .isArmed = true, .pName = "X" },
+	{ .channel = 7, .restV = 1.65, .thresholdG = 1.2, .sound = DRUMBEAT_SOUND_HIHAT, .isArmed = true, .pName = "Y" },
 };
 
 static bool isInitialized = false;
@@ -121,7 +121,7 @@ static void handleAccelerometerAxis(AccelAxis *pAxis)
 	}
 	if (magnitudeG > pAxis->thresholdG) {
 		DrumBeat_playSound(pAxis->sound);
-		printf("Air drum %s: %.1f g\n", pAxis->name, g);
+		printf("Air drum %s: %.1f g\n", pAxis->pName, g);
 		pAxis->pollsUntilReady = ACCEL_DEBOUNCE_POLLS;
 		pAxis->isArmed = false;
 	}

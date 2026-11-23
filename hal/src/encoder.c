@@ -101,12 +101,12 @@ static void handleSwitchEdge(struct gpiod_edge_event *pEvent)
 {
 	uint64_t nowNs = gpiod_edge_event_get_timestamp_ns(pEvent);
 	bool isPress = gpiod_edge_event_get_event_type(pEvent) == GPIOD_EDGE_EVENT_FALLING_EDGE;
-    bool isSettled = (nowNs - lastSwEdgeNs) >= DEBOUNCE_NS;
-    lastSwEdgeNs = nowNs;
+	bool isSettled = (nowNs - lastSwEdgeNs) >= DEBOUNCE_NS;
+	lastSwEdgeNs = nowNs;
 	if (isPress && isSettled) {
 		pthread_mutex_lock(&lock);
-        pressCount++;
-        pthread_mutex_unlock(&lock);
+		pressCount++;
+		pthread_mutex_unlock(&lock);
 	}
 }
 

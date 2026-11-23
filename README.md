@@ -6,7 +6,7 @@ Jack Hinderager (jah28@sfu.ca)
 ## Layout
 
 - `hal/`: low-level hardware access (the MCP3208 ADC over SPI, the rotary encoder through libgpiod, and the joystick).
-- `app/`: application logic (audio mixing, drum beats, terminal output, UDP server, and timing).
+- `app/`: application logic (audio mixing, drum beats, encoder and joystick/accelerometer input, the once-per-second status line, the UDP server, and timing).
 
 ## Building
 
@@ -26,3 +26,10 @@ On the target, run `npm install` once in `~/ensc351/public/myApps/beatbox-server
 Then start the server there with `node server.js`.
 Start the beat box from `~/ensc351/public/myApps/` with `./beatbox` (it looks for its sounds in `beatbox-wav-files/`).
 The web interface is on port 8088 of the target.
+To stop the beat box cleanly (all threads joined and memory freed), use the web page's "Terminate Program" button or send `stop` over UDP:
+
+```
+echo stop | nc -u -w1 127.0.0.1 12345
+```
+
+Sending `help` the same way lists the other UDP commands.
