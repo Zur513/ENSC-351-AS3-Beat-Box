@@ -4,6 +4,7 @@
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <assert.h>
 #include <pthread.h>
 #include "app/drumBeat.h"
@@ -100,7 +101,10 @@ void DrumBeat_init(void)
 		AudioMixer_readWaveFileIntoMemory((char *)soundFiles[i], &sounds[i]); // Read the sound files into memory
 	}
 	atomic_store(&stopping, false);
-	pthread_create(&beatThreadId, NULL, beatThread, NULL);
+	if (pthread_create(&beatThreadId, NULL, beatThread, NULL) != 0) {
+		fprintf(stderr, "Failed to create drum beat thread!\n");
+		exit(EXIT_FAILURE);
+	}
 }
 
 void DrumBeat_cleanup(void)
