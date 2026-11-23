@@ -24,7 +24,8 @@ It's off by default, since valgrind can't run an ASan binary.
 
 On the target, run `npm install` once in `~/ensc351/public/myApps/beatbox-server-copy/`.
 Then start the server there with `node server.js`.
-Start the beat box from `~/ensc351/public/myApps/` with `./beatbox` (it looks for its sounds in `beatbox-wav-files/`).
+Start the beat box from `~/ensc351/public/myApps/` with `sudo ./beatbox` (it needs root to request the encoder's GPIO lines).
+It looks for its sounds in `beatbox-wav-files/`, so it has to be started from that folder.
 The web interface is on port 8088 of the target.
 To stop the beat box cleanly (all threads joined and memory freed), use the web page's "Terminate Program" button or send `stop` over UDP:
 
