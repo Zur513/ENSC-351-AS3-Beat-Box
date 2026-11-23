@@ -1,4 +1,5 @@
-// drumBeat.c: Handles the drum beat settings (mode and tempo).
+// Drum beat module: plays the current beat pattern in a background thread
+// (one step every half-beat), and owns the beat mode and the tempo
 
 #include <stdatomic.h>
 #include <stdbool.h>
@@ -29,9 +30,10 @@ DrumBeat_mode DrumBeat_getMode(void)
 	return atomic_load(&currentMode);
 }
 
-//which sounds play on each half-beat.
-// Column order matches the DrumBeat_sound enum
-static const bool rockPattern[HALF_BEATS_PER_MEASURE][DRUMBEAT_NUM_SOUNDS] = {//each row is one line of the table on page 1 of the handout. 
+// Which sounds play on each half-beat. Each row is one half-beat, and the
+// columns are in DrumBeat_sound order (base, hi-hat, snare).
+// The rock beat is the table on page 1 of the handout.
+static const bool rockPattern[HALF_BEATS_PER_MEASURE][DRUMBEAT_NUM_SOUNDS] = {
     { true,  true,  false },  // 1
     { false, true,  false },  // 1.5
     { false, true,  true  },  // 2
@@ -42,32 +44,35 @@ static const bool rockPattern[HALF_BEATS_PER_MEASURE][DRUMBEAT_NUM_SOUNDS] = {//
     { false, true,  false },  // 4.5
 };
 
+// Our own beat: hi-hat on every half-beat, snare on 1 and 3, and base on
+// 2, 2.5, 3.5, and 4
 static const bool customPattern[HALF_BEATS_PER_MEASURE][DRUMBEAT_NUM_SOUNDS] = {
-    { false,  true,  true }, 
-	{ false, true,  false }, 
-	{ true, true,  false  }, 
-	{ true, true,  false },
-    { false,  true,  true }, 
-	{ true, true,  false }, 
-	{ true, true,  false  }, 
-	{ false, true,  false },
+    { false,  true,  true },  // 1
+	{ false, true,  false },  // 1.5
+	{ true, true,  false  },  // 2
+	{ true, true,  false },   // 2.5
+    { false,  true,  true },  // 3
+	{ true, true,  false },   // 3.5
+	{ true, true,  false  },  // 4
+	{ false, true,  false },  // 4.5
 };
 
-static void playStep(const bool step[DRUMBEAT_NUM_SOUNDS]) { //switch on the mode and play the sounds for this halfBeat
+// Play every sound marked true in this half-beat's row
+static void playStep(const bool step[DRUMBEAT_NUM_SOUNDS]) {
     for (int s = 0; s < DRUMBEAT_NUM_SOUNDS; s++) {
-        if (step[s]) { //check if this index is marked true and if yes play the sound
+        if (step[s]) {
             DrumBeat_playSound((DrumBeat_sound)s);
         }
     }
 }
 
-static void* beatThread(void *arg) 
+static void* beatThread(void *arg)
 {
-    (void)arg; 
-    int halfBeat = 0; // 0-7 = position within one 4-beat measure
+    (void)arg;
+    int halfBeat = 0; // 0 - 7 = position within one 4-beat measure
 
     while(!atomic_load(&stopping)) {
-        switch (DrumBeat_getMode()) {// different options for beats
+        switch (DrumBeat_getMode()) {
             case DRUMBEAT_MODE_ROCK:
             playStep(rockPattern[halfBeat]);
             break;
@@ -78,13 +83,16 @@ static void* beatThread(void *arg)
             default:
             break;
         }
-        halfBeat = (halfBeat +1) % HALF_BEATS_PER_MEASURE; //move halfBeat to the next step, wrapping 7 -> 0
+        // Move to the next step, wrapping 7 -> 0
+        halfBeat = (halfBeat +1) % HALF_BEATS_PER_MEASURE;
 
+        // Sleep for half a beat (60 / BPM / 2 seconds). The tempo is read
+        // fresh every loop, so changes apply right away.
         long long halfBeatMs = 60LL * 1000 / DrumBeat_getTempo() / 2;
-        Timing_sleepForMs(halfBeatMs); //sleep for half a beat: 60 / BPM / 2 seconds, in ms, reading the tempo fresh every loop so changes apply right away
+        Timing_sleepForMs(halfBeatMs);
     }
     return NULL;
-} 
+}
 
 void DrumBeat_init(void)
 {

@@ -1,9 +1,12 @@
-// Encoder module: reads the rotary encoder in a background thread (uses gpiod).
+// Encoder module: reads the rotary encoder and its push switch in a background
+// thread (uses gpiod).
 //
 // The thread waits for edge events on the encoder's two quadrature lines and
 // keeps a running count of detents ("clicks"). Clockwise clicks add one and
 // counter-clockwise clicks subtract one. Callers find out how far the knob has
 // turned by comparing two readings of Encoder_getPosition().
+// Presses of the knob are counted the same way (compare two readings of
+// Encoder_getPressCount()).
 
 #ifndef ENCODER_H
 #define ENCODER_H
@@ -19,6 +22,7 @@ void Encoder_cleanup(void);
 // counter-clockwise). It can be negative.
 int Encoder_getPosition(void);
 
+// Return the number of (debounced) presses of the knob so far.
 int Encoder_getPressCount(void);
 
 #endif

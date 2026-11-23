@@ -1,5 +1,5 @@
-// Encoder module: decodes the rotary encoder's quadrature signal from gpiod
-// edge events in a background thread.
+// Encoder module: decodes the rotary encoder's quadrature signal, and counts
+// presses of its push switch, from gpiod edge events in a background thread.
 
 #include "hal/encoder.h"
 #include <assert.h>
@@ -12,10 +12,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-// Header pins 29 and 31, found by name so the chip and offsets aren't hard-coded
+// Header pins 31, 29, and 36, found by name so the chip and offsets aren't hard-coded
 #define LINE_A_NAME "GPIO6"
 #define LINE_B_NAME "GPIO5"
-#define LINE_SW_NAME "GPIO16"	//push switch
+#define LINE_SW_NAME "GPIO16"	// push switch
+// Ignore switch edges this soon after the previous one (contact bounce)
 #define DEBOUNCE_NS (100 * 1000000LL)
 #define NUM_LINES 3
 #define CONSUMER_NAME "encoder"
@@ -94,7 +95,9 @@ static void *encoderThreadFn(void *pArg)
 	return NULL;
 }
 
-static void handleSwitchEdge(struct gpiod_edge_event *pEvent) 
+// Count a press on each falling edge of the switch line, unless it comes within
+// DEBOUNCE_NS of the previous edge
+static void handleSwitchEdge(struct gpiod_edge_event *pEvent)
 {
 	uint64_t nowNs = gpiod_edge_event_get_timestamp_ns(pEvent);
 	bool isPress = gpiod_edge_event_get_event_type(pEvent) == GPIOD_EDGE_EVENT_FALLING_EDGE;
@@ -208,8 +211,8 @@ static void addToPosition(int detents)
 	pthread_mutex_unlock(&lock);
 }
 
-// Search every /dev/gpiochipN for the one with both named lines, and keep it
-// open in pChip with the line offsets in offsetA and offsetB
+// Search every /dev/gpiochipN for the one with all three named lines, and keep
+// it open in pChip with the line offsets in offsetA, offsetB, and offsetSW
 static void openChipWithLines(void)
 {
 	DIR *pDir = opendir(GPIO_DEV_DIR);
@@ -228,13 +231,13 @@ static void openChipWithLines(void)
 	closedir(pDir);
 
 	if (!isFound) {
-		fprintf(stderr, "encoder: no GPIO chip has lines %s and %s (check gpioinfo)\n",
+		fprintf(stderr, "encoder: no GPIO chip has lines %s, %s, and %s (check gpioinfo)\n",
 		        LINE_A_NAME, LINE_B_NAME, LINE_SW_NAME);
 		exit(EXIT_FAILURE);
 	}
 }
 
-// Open the chip at pPath, and keep it if it has both lines
+// Open the chip at pPath, and keep it if it has all three lines
 static bool tryChip(const char *pPath)
 {
 	assert(pPath != NULL);
@@ -256,7 +259,7 @@ static bool tryChip(const char *pPath)
 	return true;
 }
 
-// Request both lines as inputs that report rising and falling edges
+// Request all three lines as inputs that report rising and falling edges
 static void requestLines(void)
 {
 	assert(pChip != NULL);

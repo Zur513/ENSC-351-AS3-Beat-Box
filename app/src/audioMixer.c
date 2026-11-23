@@ -11,13 +11,12 @@
 
 static snd_pcm_t *handle;
 
-
 //since running from root causes the USB default audio to go somewhere else (not our configured default)
 //we need to open the USB card directly here in audioMixer.c
 #define PCM_DEVICE_USB      "plughw:Device"   // USB adapter by card ID; "plug" converts 44.1 kHz mono for it
 #define PCM_DEVICE_FALLBACK "default"
 
-#define DEFAULT_VOLUME 60
+#define DEFAULT_VOLUME 80
 
 #define SAMPLE_RATE 44100
 #define NUM_CHANNELS 1
@@ -49,6 +48,8 @@ static _Bool stopping = false;
 static pthread_t playbackThreadId;
 static pthread_mutex_t audioMutex = PTHREAD_MUTEX_INITIALIZER;
 
+// Separate from audioMutex so a slow ALSA mixer write never stalls playback
+static pthread_mutex_t volumeMutex = PTHREAD_MUTEX_INITIALIZER;
 static int volume = 0;
 
 void AudioMixer_init(void)
@@ -64,12 +65,12 @@ void AudioMixer_init(void)
 	// without PipeWire; fall back to "default" if that card isn't available
 	int err = snd_pcm_open(&handle, PCM_DEVICE_USB, SND_PCM_STREAM_PLAYBACK, 0);
 	if (err < 0) {
-	    fprintf(stderr, "AudioMixer: can't open %s (%s), trying %s\n", PCM_DEVICE_USB, snd_strerror(err), PCM_DEVICE_FALLBACK);
-    	err = snd_pcm_open(&handle, PCM_DEVICE_FALLBACK, SND_PCM_STREAM_PLAYBACK, 0);
+		fprintf(stderr, "AudioMixer: can't open %s (%s), trying %s\n", PCM_DEVICE_USB, snd_strerror(err), PCM_DEVICE_FALLBACK);
+		err = snd_pcm_open(&handle, PCM_DEVICE_FALLBACK, SND_PCM_STREAM_PLAYBACK, 0);
 	}
 	if (err < 0) {
-	    printf("Playback open error: %s\n", snd_strerror(err));
-    	exit(EXIT_FAILURE);
+		printf("Playback open error: %s\n", snd_strerror(err));
+		exit(EXIT_FAILURE);
 	}
 
 	// Configure parameters of PCM output
@@ -88,7 +89,7 @@ void AudioMixer_init(void)
 	// Allocate this software's playback buffer to be the same size as the
 	// the hardware's playback buffers for efficient data transfers.
 	// ..get info on the hardware buffers:
- 	unsigned long unusedBufferSize = 0;
+	unsigned long unusedBufferSize = 0;
 	snd_pcm_get_params(handle, &unusedBufferSize, &playbackBufferSize);
 	// ..allocate playback buffer:
 	playbackBuffer = malloc(playbackBufferSize * sizeof(*playbackBuffer));
@@ -150,7 +151,7 @@ void AudioMixer_queueSound(wavedata_t *pSound)
 	// Ensure we are only being asked to play "good" sounds:
 	assert(pSound->numSamples > 0);
 	assert(pSound->pData);
-	
+
 	bool foundFreeSlot = false;
 	pthread_mutex_lock(&audioMutex);
 	for (int i = 0; i < MAX_SOUND_BITES; i++) {
@@ -191,9 +192,11 @@ void AudioMixer_cleanup(void)
 
 int AudioMixer_getVolume()
 {
-	// Return the cached volume; good enough unless someone is changing
-	// the volume through other means and the cached value is out of date.
-	return volume;
+	// Return the cached volume
+	pthread_mutex_lock(&volumeMutex);
+	int val = volume;
+	pthread_mutex_unlock(&volumeMutex);
+	return val;
 }
 
 // Function copied from:
@@ -206,29 +209,34 @@ void AudioMixer_setVolume(int newVolume)
 		printf("ERROR: Volume must be between 0 and 100.\n");
 		return;
 	}
+
+	// Hold the lock across the hardware write too, so the cached value
+	// and the speaker can't end up disagreeing when two threads race
+	pthread_mutex_lock(&volumeMutex);
 	volume = newVolume;
 
-    long min, max;
-    snd_mixer_t *mixerHandle;
-    snd_mixer_selem_id_t *sid;
-    const char *card = "hw:Device";	// USB adapter's card ID ("default" is PipeWire, which has no "Speaker")
-    // const char *selem_name = "PCM";	// For ZEN cape
-    const char *selem_name = "Speaker";	// For USB Audio
+	long min, max;
+	snd_mixer_t *mixerHandle;
+	snd_mixer_selem_id_t *sid;
+	const char *card = "hw:Device";	// USB adapter's card ID ("default" is PipeWire, which has no "Speaker")
+	// const char *selem_name = "PCM";	// For ZEN cape
+	const char *selem_name = "Speaker";	// For USB Audio
 
-    snd_mixer_open(&mixerHandle, 0);
-    snd_mixer_attach(mixerHandle, card);
-    snd_mixer_selem_register(mixerHandle, NULL, NULL);
-    snd_mixer_load(mixerHandle);
+	snd_mixer_open(&mixerHandle, 0);
+	snd_mixer_attach(mixerHandle, card);
+	snd_mixer_selem_register(mixerHandle, NULL, NULL);
+	snd_mixer_load(mixerHandle);
 
-    snd_mixer_selem_id_alloca(&sid);
-    snd_mixer_selem_id_set_index(sid, 0);
-    snd_mixer_selem_id_set_name(sid, selem_name);
-    snd_mixer_elem_t* elem = snd_mixer_find_selem(mixerHandle, sid);
+	snd_mixer_selem_id_alloca(&sid);
+	snd_mixer_selem_id_set_index(sid, 0);
+	snd_mixer_selem_id_set_name(sid, selem_name);
+	snd_mixer_elem_t* elem = snd_mixer_find_selem(mixerHandle, sid);
 	assert(elem != NULL && "Mixer Control not found - check card/selem_name");
-    snd_mixer_selem_get_playback_volume_range(elem, &min, &max);
-    snd_mixer_selem_set_playback_volume_all(elem, volume * max / 100);
+	snd_mixer_selem_get_playback_volume_range(elem, &min, &max);
+	snd_mixer_selem_set_playback_volume_all(elem, newVolume * max / 100);
 
-    snd_mixer_close(mixerHandle);
+	snd_mixer_close(mixerHandle);
+	pthread_mutex_unlock(&volumeMutex);
 }
 
 // Fill the buff array with new PCM values to output.
@@ -252,14 +260,14 @@ static void fillPlaybackBuffer(short *buff, int size)
 		short *pData = pSound->pData;
 
 		for (int j = 0; j < size && loc < numSamples; j++) {
-				int sum = buff[j] + pData[loc];
-				if (sum > SHRT_MAX) {
-					sum = SHRT_MAX;
-				} else if (sum < SHRT_MIN) {
-					sum = SHRT_MIN;
-				}
-				buff[j] = (short)sum;
-				loc++; //increment the location for this sound bite
+			int sum = buff[j] + pData[loc];
+			if (sum > SHRT_MAX) {
+				sum = SHRT_MAX;
+			} else if (sum < SHRT_MIN) {
+				sum = SHRT_MIN;
+			}
+			buff[j] = (short)sum;
+			loc++; //increment the location for this sound bite
 		}
 
 		soundBites[i].location = loc; //write back the updated location to the struct
@@ -268,18 +276,19 @@ static void fillPlaybackBuffer(short *buff, int size)
 			soundBites[i].pSound = NULL;
 		}
 	}
-	pthread_mutex_unlock (&audioMutex); 
+	pthread_mutex_unlock (&audioMutex);
 }
 
 void* playbackThread(void* _arg)
 {
+	(void)_arg;
 	while (!stopping) {
 		// Generate next block of audio
 		fillPlaybackBuffer(playbackBuffer, playbackBufferSize);
 
 		// Mark an audio event
 		Period_markEvent(PERIOD_EVENT_AUDIO);
-		
+
 		// Output the audio
 		snd_pcm_sframes_t frames = snd_pcm_writei(handle,
 				playbackBuffer, playbackBufferSize);
@@ -294,8 +303,8 @@ void* playbackThread(void* _arg)
 					frames);
 			exit(EXIT_FAILURE);
 		}
-		if (frames > 0 && frames < playbackBufferSize) {
-			printf("Short write (expected %li, wrote %li)\n",
+		if (frames > 0 && frames < (snd_pcm_sframes_t)playbackBufferSize) {
+			printf("Short write (expected %lu, wrote %li)\n",
 					playbackBufferSize, frames);
 		}
 	}
@@ -306,8 +315,8 @@ void* playbackThread(void* _arg)
 void AudioMixer_stopAllSounds(void)
 {
 	pthread_mutex_lock(&audioMutex);
-	for (int i = 0; i < MAX_SOUND_BITES; i++) {// set every sound to null 
-		soundBites[i].pSound = NULL; 
+	for (int i = 0; i < MAX_SOUND_BITES; i++) {// set every sound to null
+		soundBites[i].pSound = NULL;
 	}
 	pthread_mutex_unlock(&audioMutex);
 }

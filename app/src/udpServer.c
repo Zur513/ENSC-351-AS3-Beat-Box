@@ -1,4 +1,3 @@
-// udpServer.c
 // UDP server module: listens on port 12345 in a background thread and replies
 // to text commands
 
@@ -28,6 +27,7 @@ static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static int socketFd = -1;
 
 static void *udpServerThreadFn(void *pArg);
+static bool isThreadRunning(void);
 
 static bool handleCommand(const char *pCommand, const struct sockaddr_in *pSender);
 static void handleHelp(const struct sockaddr_in *pSender);
@@ -66,10 +66,16 @@ static void *udpServerThreadFn(void *pArg)
 									 0,
 									 (struct sockaddr *)&sender,
 									 &senderLength);
-		// recvfrom() returns 0 (or an error) once UdpServer_cleanup() shuts
-		// the socket down
+		// recvfrom() returns 0 once UdpServer_cleanup() shuts the socket down,
+		// but an empty packet from a client also returns 0. So only stop if
+		// cleanup asked us to (or on a real error), and ignore empty packets.
 		if (bytesRead <= 0) {
-			isStopRequested = true;
+			if (!isThreadRunning()) {
+				isStopRequested = true;
+			} else if (bytesRead < 0) {
+				perror("UDP recvfrom");
+				isStopRequested = true;
+			}
 		} else {
 			buffer[bytesRead] = '\0';
 			// we have to strip the newline netcat adds
@@ -142,6 +148,14 @@ void UdpServer_cleanup(void)
 	printf("UdpServer thread cleaned up successfully.\n");
 }
 
+static bool isThreadRunning(void)
+{
+	pthread_mutex_lock(&lock);
+	bool shouldRun = isRunning;
+	pthread_mutex_unlock(&lock);
+	return shouldRun;
+}
+
 static bool handleCommand(const char *pCommand, const struct sockaddr_in *pSender)
 {
 	assert(pCommand != NULL && pSender != NULL);
@@ -151,7 +165,7 @@ static bool handleCommand(const char *pCommand, const struct sockaddr_in *pSende
 	char word[16] = "";
 	int value = 0;
 	int numParsed = sscanf(pCommand, "%15s %d", word, &value);
-	
+
 	if (strcmp(word, "help") == 0 || strcmp(word, "?") == 0) {
 		handleHelp(pSender);
 	} else if (strcmp(word, "stop") == 0) {
