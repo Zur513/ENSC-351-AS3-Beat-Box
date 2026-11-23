@@ -20,6 +20,13 @@
 
 #define MAX_REPLY_SIZE 1500
 
+// Longest command word read from a packet (longer words are cut off, and so
+// won't match any command)
+#define MAX_COMMAND_LENGTH 15
+// Turns MAX_COMMAND_LENGTH into the text "15" so it can go in sscanf's format
+#define STRINGIFY(x) #x
+#define TO_STRING(x) STRINGIFY(x)
+
 static pthread_t udpServerThread;
 static bool isRunning = false;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
@@ -162,9 +169,10 @@ static bool handleCommand(const char *pCommand, const struct sockaddr_in *pSende
 	bool isStop = false;
 
 	// Rip apart the command
-	char word[16] = "";
+	char word[MAX_COMMAND_LENGTH + 1] = "";
 	int value = 0;
-	int numParsed = sscanf(pCommand, "%15s %d", word, &value);
+	int numParsed = sscanf(pCommand, "%" TO_STRING(MAX_COMMAND_LENGTH) "s %d",
+	                       word, &value);
 
 	if (strcmp(word, "help") == 0 || strcmp(word, "?") == 0) {
 		handleHelp(pSender);

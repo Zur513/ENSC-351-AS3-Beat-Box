@@ -20,6 +20,8 @@ static snd_pcm_t *handle;
 
 #define SAMPLE_RATE 44100
 #define NUM_CHANNELS 1
+// How much audio ALSA buffers (0.05 seconds), which sets the playback latency
+#define PLAYBACK_LATENCY_US 50000
 #define SAMPLE_SIZE (sizeof(short)) 			// bytes per sample
 // Sample size note: This works for mono files because each sample ("frame') is 1 value.
 // If using stereo files then a frame would be two samples.
@@ -80,7 +82,7 @@ void AudioMixer_init(void)
 			NUM_CHANNELS,
 			SAMPLE_RATE,
 			1,			// Allow software resampling
-			50000);		// 0.05 seconds per buffer
+			PLAYBACK_LATENCY_US);
 	if (err < 0) {
 		printf("Playback open error: %s\n", snd_strerror(err));
 		exit(EXIT_FAILURE);

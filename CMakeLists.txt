@@ -1,5 +1,12 @@
 # CMake Build Configuration for root of project
 cmake_minimum_required(VERSION 3.18)
+
+# Always cross-compile for the BeagleY-AI, even if no toolchain file is given
+# on the command line (must come before project())
+if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
+	set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/aarch64-toolchain.cmake")
+endif()
+
 project(beatbox VERSION 1.0 DESCRIPTION "ENSC351 Assignment 3" LANGUAGES C)
 
 # Compiler options (inherited by sub-folders)

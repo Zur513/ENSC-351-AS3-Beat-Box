@@ -10,13 +10,14 @@ Jack Hinderager (jah28@sfu.ca)
 
 ## Building
 
-The project cross-compiles with CMake, using `aarch64-linux-gnu-gcc` and the arm64 build of `libgpiod-dev`:
+The project cross-compiles with CMake, using `aarch64-linux-gnu-gcc` and the arm64 builds of `libgpiod-dev` and `libasound2-dev`:
 
 ```
-cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=aarch64-toolchain.cmake && cmake --build build
+cmake -S . -B build && cmake --build build
 ```
 
-The build copies the executable to `~/ensc351/public/myApps/beatbox`, the drum sounds to `~/ensc351/public/myApps/beatbox-wav-files/`, and the Node.js server to `~/ensc351/public/myApps/beatbox-server-copy/`
+`CMakeLists.txt` uses `aarch64-toolchain.cmake` automatically, so no toolchain flag is needed.
+The build copies the executable to `~/ensc351/public/myApps/beatbox`, the drum sounds to `~/ensc351/public/myApps/beatbox-wav-files/`, and the Node.js server to `~/ensc351/public/myApps/beatbox-server-copy/`.
 Adding `-DUSE_ASAN=ON` to the first command builds with AddressSanitizer.
 It's off by default, since valgrind can't run an ASan binary.
 
@@ -25,7 +26,7 @@ It's off by default, since valgrind can't run an ASan binary.
 On the target, run `npm install` once in `~/ensc351/public/myApps/beatbox-server-copy/`.
 Then start the server there with `node server.js`.
 Start the beat box from `~/ensc351/public/myApps/` with `sudo ./beatbox` (it needs root to request the encoder's GPIO lines).
-It looks for its sounds in `beatbox-wav-files/`, so it has to be started from that folder.
+It looks for its sounds in `beatbox-wav-files/`, so it has to be started from `myApps`.
 The web interface is on port 8088 of the target.
 To stop the beat box cleanly (all threads joined and memory freed), use the web page's "Terminate Program" button or send `stop` over UDP:
 
