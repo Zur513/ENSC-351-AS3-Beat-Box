@@ -19,4 +19,6 @@ void Encoder_cleanup(void);
 // counter-clockwise). It can be negative.
 int Encoder_getPosition(void);
 
+int Encoder_getPressCount(void);
+
 #endif

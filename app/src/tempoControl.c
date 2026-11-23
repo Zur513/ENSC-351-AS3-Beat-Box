@@ -1,4 +1,5 @@
-// Tempo control module: Reads rotary encoder thread in background and adjusts DrumBeats tempo by +- 5 BPM per click
+// Tempo control module: Reads rotary encoder thread in background and adjusts DrumBeats tempo by +- 5 BPM per click,
+// and cycles the beat mode on each press of the knob
 
 #include "app/tempoControl.h"
 #include "app/timing.h"
@@ -30,6 +31,7 @@ static void *tempoThreadFn(void *pArg)
 	(void)pArg;
 	//int tempoBPM = START_TEMPO_BPM;
 	int lastPosition = Encoder_getPosition();
+	int lastPressCount = Encoder_getPressCount();
 
 	while (!atomic_load(&isStopRequested)) {
 		// Apply the change in position (not the position itself), so the
@@ -39,8 +41,18 @@ static void *tempoThreadFn(void *pArg)
 		lastPosition = position;
 
 		if (clicks != 0) {
-			DrumBeat_setTempo(DrumBeat_getTempo() + clicks * TEMPO_STEP_BPM); 
+			DrumBeat_setTempo(DrumBeat_getTempo() + clicks * TEMPO_STEP_BPM);
 		}
+
+		// Each (debounced) press of the knob moves to the next mode:
+		// ROCK(1) -> CUSTOM(2) -> NONE(0) -> ROCK(1) ...
+		int pressCount = Encoder_getPressCount();
+		if (pressCount != lastPressCount) {
+			lastPressCount = pressCount;
+			DrumBeat_mode next = (DrumBeat_getMode() + 1) % DRUMBEAT_NUM_MODES;
+			DrumBeat_setMode(next);
+		}
+
 		Timing_sleepForMs(POLL_PERIOD_MS);
 	}
 	return NULL;

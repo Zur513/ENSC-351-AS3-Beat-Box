@@ -15,7 +15,9 @@
 // Header pins 29 and 31, found by name so the chip and offsets aren't hard-coded
 #define LINE_A_NAME "GPIO6"
 #define LINE_B_NAME "GPIO5"
-#define NUM_LINES 2
+#define LINE_SW_NAME "GPIO16"	//push switch
+#define DEBOUNCE_NS (100 * 1000000LL)
+#define NUM_LINES 3
 #define CONSUMER_NAME "encoder"
 #define GPIO_DEV_DIR "/dev"
 
@@ -33,15 +35,19 @@ static struct gpiod_line_request *pRequest = NULL;
 static struct gpiod_edge_event_buffer *pEventBuffer = NULL;
 static unsigned int offsetA;
 static unsigned int offsetB;
+static unsigned int offsetSW;
 
 static pthread_t encoderThread;
 static bool isRunning = false;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-static int position = 0;
+static int position = 0; //protected by lock
+static int pressCount = 0; //protected by lock
 
 // Decoder state, only touched by the encoder thread
 static int prevState = 0;
 static int steps = 0;
+
+static uint64_t lastSwEdgeNs = 0; //only touched by the encoder thread
 
 // Index = (previous state << 2) | new state, where state = (A << 1) | B.
 // A valid move gives +1 (clockwise) or -1 (counter-clockwise). No change or
@@ -88,11 +94,28 @@ static void *encoderThreadFn(void *pArg)
 	return NULL;
 }
 
+static void handleSwitchEdge(struct gpiod_edge_event *pEvent) 
+{
+	uint64_t nowNs = gpiod_edge_event_get_timestamp_ns(pEvent);
+	bool isPress = gpiod_edge_event_get_event_type(pEvent) == GPIOD_EDGE_EVENT_FALLING_EDGE;
+    bool isSettled = (nowNs - lastSwEdgeNs) >= DEBOUNCE_NS;
+    lastSwEdgeNs = nowNs;
+	if (isPress && isSettled) {
+		pthread_mutex_lock(&lock);
+        pressCount++;
+        pthread_mutex_unlock(&lock);
+	}
+}
+
 // Update the quadrature state from one edge, and count a detent every
 // STEPS_PER_DETENT steps in the same direction
 static void handleEdge(struct gpiod_edge_event *pEvent)
 {
 	assert(pEvent != NULL);
+	if (gpiod_edge_event_get_line_offset(pEvent) == offsetSW) {
+		handleSwitchEdge(pEvent);
+		return;
+	}
 	int bit = (gpiod_edge_event_get_line_offset(pEvent) == offsetA) ? STATE_BIT_A : STATE_BIT_B;
 	// Use the edge type for the new value instead of reading the line, since
 	// the line may have changed again by now
@@ -162,6 +185,14 @@ int Encoder_getPosition(void)
 	return currentPosition;
 }
 
+int Encoder_getPressCount(void)
+{
+	pthread_mutex_lock(&lock);
+	int currentPressCount = pressCount;
+	pthread_mutex_unlock(&lock);
+	return currentPressCount;
+}
+
 static bool isThreadRunning(void)
 {
 	pthread_mutex_lock(&lock);
@@ -198,7 +229,7 @@ static void openChipWithLines(void)
 
 	if (!isFound) {
 		fprintf(stderr, "encoder: no GPIO chip has lines %s and %s (check gpioinfo)\n",
-		        LINE_A_NAME, LINE_B_NAME);
+		        LINE_A_NAME, LINE_B_NAME, LINE_SW_NAME);
 		exit(EXIT_FAILURE);
 	}
 }
@@ -213,13 +244,15 @@ static bool tryChip(const char *pPath)
 	}
 	int foundA = gpiod_chip_get_line_offset_from_name(pCandidate, LINE_A_NAME);
 	int foundB = gpiod_chip_get_line_offset_from_name(pCandidate, LINE_B_NAME);
-	if (foundA < 0 || foundB < 0) {
+	int foundSW = gpiod_chip_get_line_offset_from_name(pCandidate, LINE_SW_NAME);
+	if (foundA < 0 || foundB < 0 || foundSW < 0) {
 		gpiod_chip_close(pCandidate);
 		return false;
 	}
 	pChip = pCandidate;
 	offsetA = foundA;
 	offsetB = foundB;
+	offsetSW = foundSW;
 	return true;
 }
 
@@ -237,7 +270,7 @@ static void requestLines(void)
 	gpiod_line_settings_set_direction(pSettings, GPIOD_LINE_DIRECTION_INPUT);
 	gpiod_line_settings_set_edge_detection(pSettings, GPIOD_LINE_EDGE_BOTH);
 
-	const unsigned int offsets[NUM_LINES] = { offsetA, offsetB };
+	const unsigned int offsets[NUM_LINES] = { offsetA, offsetB, offsetSW };
 	gpiod_line_config_add_line_settings(pLineConfig, offsets, NUM_LINES, pSettings);
 	gpiod_request_config_set_consumer(pRequestConfig, CONSUMER_NAME);
 
@@ -250,3 +283,4 @@ static void requestLines(void)
 		exit(EXIT_FAILURE);
 	}
 }
+
