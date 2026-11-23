@@ -11,6 +11,12 @@
 
 static snd_pcm_t *handle;
 
+
+//since running from root causes the USB default audio to go somewhere else (not our configured default)
+//we need to open the USB card directly here in audioMixer.c
+#define PCM_DEVICE_USB      "plughw:Device"   // USB adapter by card ID; "plug" converts 44.1 kHz mono for it
+#define PCM_DEVICE_FALLBACK "default"
+
 #define DEFAULT_VOLUME 60
 
 #define SAMPLE_RATE 44100
@@ -54,11 +60,16 @@ void AudioMixer_init(void)
 		soundBites[i].pSound = NULL;
 	}
 
-	// Open the PCM output
-	int err = snd_pcm_open(&handle, "default", SND_PCM_STREAM_PLAYBACK, 0);
+	// Open the PCM output: the USB adapter directly, so it works as root (sudo)
+	// without PipeWire; fall back to "default" if that card isn't available
+	int err = snd_pcm_open(&handle, PCM_DEVICE_USB, SND_PCM_STREAM_PLAYBACK, 0);
 	if (err < 0) {
-		printf("Playback open error: %s\n", snd_strerror(err));
-		exit(EXIT_FAILURE);
+	    fprintf(stderr, "AudioMixer: can't open %s (%s), trying %s\n", PCM_DEVICE_USB, snd_strerror(err), PCM_DEVICE_FALLBACK);
+    	err = snd_pcm_open(&handle, PCM_DEVICE_FALLBACK, SND_PCM_STREAM_PLAYBACK, 0);
+	}
+	if (err < 0) {
+	    printf("Playback open error: %s\n", snd_strerror(err));
+    	exit(EXIT_FAILURE);
 	}
 
 	// Configure parameters of PCM output
