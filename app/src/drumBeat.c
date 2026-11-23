@@ -43,14 +43,14 @@ static const bool rockPattern[HALF_BEATS_PER_MEASURE][DRUMBEAT_NUM_SOUNDS] = {//
 };
 
 static const bool customPattern[HALF_BEATS_PER_MEASURE][DRUMBEAT_NUM_SOUNDS] = {
-    { true,  true,  false }, 
+    { false,  true,  true }, 
 	{ false, true,  false }, 
 	{ true, true,  false  }, 
 	{ true, true,  false },
     { false,  true,  true }, 
 	{ true, true,  false }, 
 	{ true, true,  false  }, 
-	{ false, true,  true },
+	{ false, true,  false },
 };
 
 static void playStep(const bool step[DRUMBEAT_NUM_SOUNDS]) { //switch on the mode and play the sounds for this halfBeat

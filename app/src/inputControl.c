@@ -1,8 +1,11 @@
-// Input control module: polls the joystick through the ADC every 10 ms and turns
-// up/down into volume changes. The accelerometer will be read in the same loop.
+// Input control module: polls the joystick and the accelerometer through the ADC
+// every 10 ms. Joystick up/down changes the volume; a sharp move along an
+// accelerometer axis ("air drumming") plays that axis's drum sound.
 
 #include "app/inputControl.h"
 #include "app/audioMixer.h"
+#include "app/drumBeat.h"
+#include "app/periodTimer.h"
 #include "app/timing.h"
 #include "hal/adc.h"
 #include "hal/joystick.h"
@@ -16,10 +19,38 @@
 #define POLL_PERIOD_MS 10
 #define VOLUME_STEP 5
 
+// Accelerometer: about 0.36 V per g on this board (measured: a 1 g tilt moved each axis ~0.35-0.37 V)
+#define ACCEL_V_PER_G 0.36
+// After a hit, ignore that axis for this long, so the slow-down at the end of
+// the same air-drum stroke doesn't play a second sound. Short enough for ~100 BPM.
+#define ACCEL_DEBOUNCE_POLLS (150 / POLL_PERIOD_MS)
+#define ACCEL_REARM_FRACTION 0.5 //only rearms once the axis has calmed down below this fraction of its threshold
+
+#define NUM_AXES 3
+
+
 // Holding the joystick: wait HOLD_DELAY before the first repeat, then repeat
 // every REPEAT_PERIOD. Counted in polls, since each pass of the loop is 10 ms.
 #define HOLD_DELAY_POLLS (500 / POLL_PERIOD_MS)
 #define REPEAT_PERIOD_POLLS (150 / POLL_PERIOD_MS)
+
+typedef struct {
+	int channel;
+	double restV;           // voltage with the board flat and still (measured with adcprobe)
+	double thresholdG; 		// how far from rest (in g) counts as a hit
+	DrumBeat_sound sound;
+	int pollsUntilReady; 	//debounce countdown after a hit
+	bool isArmed; 			//false until the axis calms down after a hit
+	const char *name;       // for the message printed on a hit
+} AccelAxis;
+
+// Only touched by the input thread. Rest voltages were measured flat on the desk;
+// Z's includes the 1 g from gravity.
+static AccelAxis axes[NUM_AXES] = {
+	{ .channel = 5, .restV = 2.02, .thresholdG = 0.8, .sound = DRUMBEAT_SOUND_BASE,  .isArmed = true, .name = "Z" }, // vertical drum = bass
+	{ .channel = 6, .restV = 1.64, .thresholdG = 1.2, .sound = DRUMBEAT_SOUND_SNARE, .isArmed = true, .name = "X" },
+	{ .channel = 7, .restV = 1.65, .thresholdG = 1.2, .sound = DRUMBEAT_SOUND_HIHAT, .isArmed = true, .name = "Y" },
+};
 
 static bool isInitialized = false;
 static pthread_t inputThread;
@@ -70,12 +101,47 @@ static void handleJoystick(void)
 	}
 }
 
+// Check one axis: play its sound on a hard enough move, then debounce
+static void handleAccelerometerAxis(AccelAxis *pAxis)
+{
+	double g = (Adc_readVoltage(pAxis->channel) - pAxis->restV) / ACCEL_V_PER_G;
+	double magnitudeG = (g < 0) ? -g : g;
+
+	if (pAxis->pollsUntilReady > 0) {
+		// Still debouncing after a hit
+		pAxis->pollsUntilReady--;
+		return;
+	}
+	if (!pAxis->isArmed) {
+		// Wait for the axis to calm down before allowing the next hit
+		if (magnitudeG < pAxis->thresholdG * ACCEL_REARM_FRACTION) {
+			pAxis->isArmed = true;
+		}
+		return;
+	}
+	if (magnitudeG > pAxis->thresholdG) {
+		DrumBeat_playSound(pAxis->sound);
+		printf("Air drum %s: %.1f g\n", pAxis->name, g);
+		pAxis->pollsUntilReady = ACCEL_DEBOUNCE_POLLS;
+		pAxis->isArmed = false;
+	}
+}
+
+// Read every axis once (one accelerometer "sample" for the reporter's stats)
+static void handleAccelerometer(void)
+{
+	for (int i = 0; i < NUM_AXES; i++) {
+		handleAccelerometerAxis(&axes[i]);
+	}
+	Period_markEvent(PERIOD_EVENT_ACCEL);
+}
+
 static void *inputThreadFn(void *pArg)
 {
 	(void)pArg;
 	while (!atomic_load(&isStopRequested)) {
 		handleJoystick();
-		// TODO: read the accelerometer here, and Period_markEvent(PERIOD_EVENT_ACCEL)
+		handleAccelerometer();
 		Timing_sleepForMs(POLL_PERIOD_MS);
 	}
 	return NULL;
